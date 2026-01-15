@@ -5,6 +5,8 @@ WORKDIR /app
 COPY requirments.txt .
 RUN pip install --no-cache-dir -r requirments.txt
 
+ENV PYTHONUNBUFFERED=1
+
 RUN playwright install chromium
 RUN playwright install-deps
 
