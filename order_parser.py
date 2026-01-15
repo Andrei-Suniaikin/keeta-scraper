@@ -411,7 +411,7 @@ def save_new_id(order_id):
 
 def run_browser():
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=False)
+        browser = playwright.chromium.launch(headless=True)
 
         try:
             context = browser.new_context(
@@ -460,47 +460,25 @@ def run_browser():
 
 
 def run_scraper_loop():
-    print("🚀 Запуск скрапера...")
+    print("🚀 СТАРТ СКРАПЕРА")
 
     if "AUTH_JSON_CONTENT" in os.environ:
-        print("🔑 Создаем auth.json из переменных окружения...")
+        print("🔑 Восстанавливаем auth.json...")
         with open(AUTH_FILE, "w", encoding='utf-8') as f:
             f.write(os.environ["AUTH_JSON_CONTENT"])
 
-    time.sleep(3)
+    time.sleep(2)
 
-    with sync_playwright() as playwright:
-
-        browser = playwright.chromium.launch(headless=True, args=['--no-sandbox'])
-
-        if not os.path.exists(AUTH_FILE):
-            print(f"❌ Ошибка: Нет файла {AUTH_FILE}. Проверьте переменные окружения.")
-            return
-
+    while True:
         try:
-            context = browser.new_context(
-                storage_state=AUTH_FILE,
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                viewport={"width": 1920, "height": 1080}
-            )
+            run_browser()
+
+            print("⏳ Ждем 60 секунд...")
+            time.sleep(40)
+
         except Exception as e:
-            print(f"❌ Ошибка загрузки куки: {e}")
-            return
-
-        page = context.new_page()
-
-        while True:
-            try:
-                run_browser()
-
-                print("✅ Цикл завершен. Ждем 60 сек...")
-                time.sleep(60)
-
-            except Exception as e:
-                print(f"🔥 Ошибка скрапера: {e}")
-                time.sleep(10)
-
-        browser.close()
+            print(f"🔥 Глобальная ошибка цикла: {e}")
+            time.sleep(10)
 app = FastAPI()
 
 @app.get("/")
