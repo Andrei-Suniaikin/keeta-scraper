@@ -466,7 +466,7 @@ def run_browser():
             PAGE_URL
         )
 
-        page.wait_for_timeout(10000)
+        page.wait_for_timeout(25000)
 
         orders = final_data.get("orders", [])
 
