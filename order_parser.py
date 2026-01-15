@@ -317,10 +317,22 @@ def parse_orders(orders):
 
 def parse_order(order, order_id, status, branch_name):
     base_order = order.get("baseOrder", {})
+
+    ctime = base_order.get("ctime")
+
+    if ctime:
+        current_time_ms = int(time.time() * 1000)
+        is_old = (current_time_ms - ctime) > (3 * 60 * 1000)
+        is_cancelled = (status == 50)
+
+        if is_old and not is_cancelled:
+            print(f"⏩ Пропуск заказа {order_id} (Старый, создан: {get_bahrain_time(ctime)})")
+            return
+    else:
+        print(f"⚠️ У заказа {order_id} нет поля ctime, пропускаем фильтр.")
     order_items = order.get("products", [])
     client_info = order.get("recipientInfo", {})
     total_price = order.get("feeDtl", {}).get("merchantFee", {}).get("productPrice")/1000
-    timestamp = get_bahrain_time(order.get("baseOrder", {}).get("serverTime"))
     branch_id = ""
     if "Hidd" in branch_name: branch_id = AVAILABLE_BRANCHES.get("Hidd")
     parsed_order_items = parse_order_items(order_items)
@@ -332,7 +344,7 @@ def parse_order(order, order_id, status, branch_name):
         'telephoneNo': client_info.get("interCode")+client_info.get("phone"),
         'name': client_info.get("name", ""),
         'amountPaid': total_price,
-        'timestamp': timestamp,
+        'timestamp': get_bahrain_time(ctime),
         'status': status,
         'description': base_order.get("remark", ""),
         'branchId': branch_id,
@@ -411,7 +423,14 @@ def save_new_id(order_id):
 
 def run_browser():
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=True, args=['--no-sandbox'])
+        browser = playwright.chromium.launch(headless=True, args=['--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--single-process',
+                '--disable-gpu'])
 
         try:
             context = browser.new_context(
