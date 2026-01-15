@@ -411,7 +411,7 @@ def save_new_id(order_id):
 
 def run_browser():
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=True)
+        browser = playwright.chromium.launch(headless=True, args=['--no-sandbox'])
 
         try:
             context = browser.new_context(
