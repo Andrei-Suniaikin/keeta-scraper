@@ -338,7 +338,7 @@ def parse_order(order, order_id, status, branch_name):
         'branchId': branch_id,
         "paymentType": base_order.get("payTypeDesc"),
     }
-    response = requests.post("https://icpizza-back.onrender.com/api/keeta/create_order", json=parsed_order)
+    response = requests.post(BACKEND_URL, json=parsed_order)
     print(response.status_code)
 
 
@@ -515,14 +515,4 @@ def startup_event():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     uvicorn.run(app, host="0.0.0.0", port=port)
-
-
-
-# if __name__ == "__main__":
-#     while True:
-#         try:
-#             run_browser()
-#         except Exception as e:
-#             print(f"Caught an error: {e}")
-#         time.sleep(30)
 
