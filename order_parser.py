@@ -8,7 +8,6 @@ import requests
 import uvicorn
 from fastapi import FastAPI
 from playwright.sync_api import sync_playwright
-import gc
 
 AUTH_FILE = "auth.json"
 HISTORY_FILE = "history.txt"
@@ -469,17 +468,12 @@ def run_browser():
 
         page.wait_for_timeout(25000)
 
+        print(f"📍 Текущий URL: {page.url}")
+        print(f"📄 Заголовок: {page.title()}")
+
         orders = final_data.get("orders", [])
 
-        page.close()
-        context.close()
         browser.close()
-
-        del page
-        del context
-        del browser
-        gc.collect()
-        print("🧹 Память очищена")
 
         try:
             parse_orders(orders)
