@@ -44,6 +44,17 @@ AVAILABLE_BRANCHES = {
     "Hidd": "2e8c35f7-d75e-4442-b496-cbb929842c10"
 }
 
+
+WEEKLY_SCHEDULE = {
+    0: [14, 24],
+    1: [14, 24],  # Вторник
+    2: [14, 14],  # Среда
+    3: [15, 2],  # Четверг (до 3 ночи)
+    4: [15, 2],  # Пятница
+    5: [14, 24],
+    6: [None, None]
+}
+
 MENU_CATEGORIES = {
     "Pizzas": {
         "Pepperoni",
@@ -481,6 +492,33 @@ def run_browser():
             print(f"Unfortunately an exception has dropped: {e}")
 
 
+def is_shop_open():
+    bahrain_tz = timezone(timedelta(hours=3))
+    now = datetime.now(bahrain_tz)
+
+    day_of_week = now.weekday()
+
+
+    today_schedule = WEEKLY_SCHEDULE.get(day_of_week, [10, 2])
+
+    open_hour = today_schedule[0]
+    close_hour = today_schedule[1]
+
+    current_hour = now.hour
+
+    if open_hour < close_hour:
+        is_open = open_hour <= current_hour < close_hour
+
+    else:
+        is_open = current_hour >= open_hour or current_hour < close_hour
+
+    if not is_open:
+        print(
+            f"🕒 Сейчас {now.strftime('%H:%M')} (День {day_of_week}). График на сегодня: {open_hour}:00 - {close_hour}:00")
+
+    return is_open
+
+
 def run_scraper_loop():
     print("🚀 СТАРТ СКРАПЕРА")
 
@@ -493,14 +531,19 @@ def run_scraper_loop():
 
     while True:
         try:
-            run_browser()
+            if is_shop_open():
+                run_browser()
 
-            print("⏳ Ждем 60 секунд...")
-            time.sleep(40)
+                print("⏳ Ждем 60 секунд...")
+                time.sleep(40)
+            else:
+                print("CLosed")
+                time.sleep(40)
 
         except Exception as e:
             print(f"🔥 Глобальная ошибка цикла: {e}")
             time.sleep(10)
+
 app = FastAPI()
 
 @app.get("/")
