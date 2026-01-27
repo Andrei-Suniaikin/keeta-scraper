@@ -15,30 +15,6 @@ ALL_ORDERS_URL = "https://merchant-eu.mykeeta.com/api/order/history/getOrders"
 PAGE_URL = "https://merchant-eu.mykeeta.com/m/web/mach/b_pc_order_history_list?locale=en&cityId=101200020"
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8080/api/keeta/create_order")
 
-HEADERS = {    'accept': 'application/json, text/plain, */*',
-    'accept-language': 'pl,ru;q=0.9,en-US;q=0.8,en;q=0.7,ar;q=0.6',
-    'accountid': '4611686018429226254',
-    'appversion': '',
-    'cityid': '101200020',
-    'clienttype': 'b_pc',
-    'content-type': 'application/json',
-    'locale': 'en',
-    'm-appkey': 'fe_com.keetapp.sailorfe.b.pc',
-    'm-traceid': '-4217100518479034698',
-    'mtgsig': '{"a1":"1.2","a2":1768137921239,"a3":"00w4v2122w485477yzz43w96w91v073z80y01y3809197958uz1u53v8","a5":"bEKr7Rbjpw1KtLRDn9FhdRY+ZICl/xX+YJNYO8Rtd084vLe7QO89k9VuuDwizQb8fiL/8EbSCshHOdxaODUFHoeex3w5FzKu2vG2k8LZol1GmIpK3un6263stb1qNpxdvtd5J4dEveI=","a6":"h1.8xw4HFwDNZANKXewnYBzxLQNyj3OpThVoY4x1V2C8wbs7wjeduBwOMRFdIKVPs1tBD76j+6Y8JHipFONXve+Ohs6Jzr1VTAoriltEvE/fue6Mm4pUAxCWYaorw8hoHTGR9LD2McLrPZ0rdJVHOvy+WOp15NTXkXzUza/Sii6vbXtNPnoR4AxAovOSAKjTknW9wO0YYk6ZwU9EF40jkdAPuROW9HI6ECOVIJ6qdvvh0nQVxLCJ3UB0psRS4rSw5VaixTQMDDFFdKgZvJGIgj4vLYAN0VZhKL2tYcVp9wsOvFE8/2PaQ+DkX6SryG23yBrBaVBNQnX1DhNVPkk+O4QBgx9xYj2fdfGd4Cl5llHfoOMhyASx4vVTf5DWaiByaIM/","a8":"bf52a4cb1983351bacfde0b2147ef097","a9":"3.4.0,7,185","a10":"e6","x0":4,"d1":"514940208d02349bf19e5b6fdc4b74b8"}',
-    'opcenterselectedregion': 'BH',
-    'origin': 'https://merchant-eu.mykeeta.com',
-    'platform': '1',
-    'priority': 'u=1, i',
-    'referer': 'https://merchant-eu.mykeeta.com/web/mach/b_pc_order_history_list?locale=en&cityId=101200020',
-    'region': 'BH',
-    'sec-fetch-dest': 'empty',
-    'sec-fetch-mode': 'cors',
-    'sec-fetch-site': 'same-origin',
-    'shopid': '100728298',
-    'syslocale': 'en',
-    'timezone': 'GMT+08:00',
-    'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Safari/605.1.15',}
 
 AVAILABLE_BRANCHES = {
     "Hidd": "2e8c35f7-d75e-4442-b496-cbb929842c10"
@@ -47,10 +23,10 @@ AVAILABLE_BRANCHES = {
 
 WEEKLY_SCHEDULE = {
     0: [14, 24],
-    1: [14, 24],  # Вторник
-    2: [14, 14],  # Среда
-    3: [15, 2],  # Четверг (до 3 ночи)
-    4: [15, 2],  # Пятница
+    1: [14, 24],
+    2: [14, 14],
+    3: [15, 2],
+    4: [15, 2],
     5: [14, 24],
     6: [None, None]
 }
@@ -219,7 +195,7 @@ def parse_options(attributes_list, is_combo, size):
                 if modifier.get("shopProductGroupSkuList", [])[0] is not None:
                     pizza = modifier.get("shopProductGroupSkuList", {})[0]
                     new_combo_item = {
-                        "item_name": pizza.get("spuName"),
+                        "name": pizza.get("spuName"),
                         'quantity': pizza.get("count"),
                         'category': "Pizzas",
                         'size': size,
@@ -228,39 +204,39 @@ def parse_options(attributes_list, is_combo, size):
                     }
                     result["combo_items"].append(new_combo_item)
 
-            if modifier.get("groupName", "")=="Choose Your Beverage":
+            if modifier.get("groupName", "").strip()=="Choose Your Beverage":
                 if modifier.get("shopProductGroupSkuList", [])[0] is not None:
                     beverage = modifier.get("shopProductGroupSkuList", {})[0]
                     new_combo_item = {
-                        "item_name": beverage.get("spuName"),
+                        "name": beverage.get("spuName"),
                         'quantity': beverage.get("count"),
                         'category': "Beverages"
                     }
                     result["combo_items"].append(new_combo_item)
 
-            if modifier.get("groupName", "")=="Choose Your Sauce":
+            if modifier.get("groupName", "").strip()=="Choose Your Sauce":
                 if modifier.get("shopProductGroupSkuList", [])[0] is not None:
                     sauce = modifier.get("shopProductGroupSkuList", [])[0]
                     new_combo_item = {
-                        "item_name": sauce.get("spuName"),
+                        "name": sauce.get("spuName"),
                         'quantity': sauce.get("count"),
                         'category': "Sauces",
                         'size': None
                     }
                     result["combo_items"].append(new_combo_item)
 
-            if modifier.get("groupName", "")=="Choose Your Detroit Pizza":
+            if modifier.get("groupName", "").strip()=="Choose Your Detroit Pizza":
                 if modifier.get("shopProductGroupSkuList", [])[0] is not None:
                     detroit_pizza = modifier.get("shopProductGroupSkuList", [])[0]
                     new_combo_item = {
-                        "item_name": detroit_pizza.get("spuName"),
+                        "name": detroit_pizza.get("spuName"),
                         'quantity': detroit_pizza.get("count"),
                         'category': "Brick Pizzas"
                     }
                     result["combo_items"].append(new_combo_item)
 
 
-            if "Modifiers" in modifier.get("groupName", ""):
+            if "Modifiers" in modifier.get("groupName", "").strip():
                 if modifier.get("shopProductGroupSkuList", [])[0] is not None:
                     pizza_modifiers = modifier.get("shopProductGroupSkuList", [])
                     for pizza_modifier in pizza_modifiers:
@@ -268,13 +244,13 @@ def parse_options(attributes_list, is_combo, size):
                         count = pizza_modifier.get("count")
                         result["description_parts"].append(f"{name} x{count}")
 
-            if modifier.get("groupName", "") == "Garlic Crust":
+            if modifier.get("groupName", "").strip() == "Garlic Crust":
                 if modifier.get("shopProductGroupSkuList", [])[0].get("spuName") == "With Garlic Oil On The Crust":
                     for item in result["combo_items"]:
                         if item["category"] == "Pizzas":
                             item["is_garlic_crust"] = True
 
-            if modifier.get("groupName", "") == "Dough Type":
+            if modifier.get("groupName", "").strip() == "Dough Type":
                 if modifier.get("shopProductGroupSkuList", [])[0].get("spuName") == "Thin":
                     for item in result["combo_items"]:
                         if item["category"] == "Pizzas":
@@ -378,7 +354,7 @@ def parse_order_items(raw_items):
     parsed_items = []
 
     for item in raw_items:
-        raw_name = item.get("name", "")
+        raw_name = item.get("name", "").strip()
         raw_spec = item.get("groups", [])
 
         quantity = item.get("count", 1)
