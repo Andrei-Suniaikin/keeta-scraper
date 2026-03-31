@@ -22,12 +22,12 @@ AVAILABLE_BRANCHES = {
 
 
 WEEKLY_SCHEDULE = {
-    0: [15, 4],
-    1: [15, 4],
-    2: [15, 4],
-    3: [15, 4],
-    4: [15, 4],
-    5: [15, 4],
+    0: [14, 24],
+    1: [14, 24],
+    2: [14, 14],
+    3: [15, 2],
+    4: [15, 2],
+    5: [14, 24],
     6: [None, None]
 }
 
@@ -70,7 +70,10 @@ MENU_CATEGORIES = {
         "Pizza Combo"
     },
     "Sides": {
-        "Cheesy Garlic Baguette"
+        "Cheesy Garlic Baguette",
+        "BBQ Chicken Ranch Baguette Pizza",
+        "Pepperoni Baguette Pizza",
+        "Smoked Turkey & Mushroom Baguette Pizza"
     }
 }
 
@@ -304,6 +307,7 @@ def parse_orders(orders):
 
 def parse_order(order, order_id, status, branch_name):
     base_order = order.get("baseOrder", {})
+    print("Processing order with id: ", order_id)
 
     ctime = base_order.get("ctime")
 
