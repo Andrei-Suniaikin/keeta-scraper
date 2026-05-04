@@ -22,12 +22,12 @@ AVAILABLE_BRANCHES = {
 
 
 WEEKLY_SCHEDULE = {
-    0: [14, 24],
-    1: [14, 24],
-    2: [14, 14],
-    3: [15, 3],
-    4: [15, 3],
-    5: [14, 3],
+    0: [15, 24],
+    1: [15, 24],
+    2: [15, 24],
+    3: [16, 2],
+    4: [16, 2],
+    5: [15, 24],
     6: [None, None]
 }
 
@@ -310,14 +310,19 @@ def parse_order(order, order_id, status, branch_name):
     print("Processing order with id: ", order_id)
 
     ctime = base_order.get("ctime")
+    
+    seen = processed_ids()
+    if order_id in seen:
+        return
 
     if ctime:
         current_time_ms = int(time.time() * 1000)
-        is_old = (current_time_ms - ctime) > (3 * 60 * 1000)
+        is_too_old = (current_time_ms - ctime) > (2 * 60 * 60 * 1000)
         is_cancelled = (status == 50)
 
-        if is_old and not is_cancelled:
-            print(f"⏩ Пропуск заказа {order_id} (Старый, создан: {get_bahrain_time(ctime)})")
+        if is_too_old and not is_cancelled:
+            print(f"⏩ Пропуск заказа {order_id} (Слишком старый, создан: {get_bahrain_time(ctime)})")
+            save_new_id(order_id)
             return
     else:
         print(f"⚠️ У заказа {order_id} нет поля ctime, пропускаем фильтр.")
@@ -343,6 +348,9 @@ def parse_order(order, order_id, status, branch_name):
     }
     response = requests.post(BACKEND_URL, json=parsed_order)
     print(response.status_code)
+    
+    if response.status_code in [200, 201]:
+        save_new_id(order_id)
 
 
 def get_bahrain_time(timestamp):
@@ -385,7 +393,7 @@ def parse_order_items(raw_items):
             "name": db_name,
             "size": db_size,
             "quantity": quantity,
-            "amount": price,
+            "price": price,
             "category": category,
             "is_garlic_crust": parsed_opts["is_garlic_crust"],
             "is_thin_dough": parsed_opts["is_thin_dough"],
@@ -486,9 +494,10 @@ def is_shop_open():
 
     current_hour = now.hour
 
-    if open_hour < close_hour:
+    if open_hour is None or close_hour is None:
+        is_open = False
+    elif open_hour < close_hour:
         is_open = open_hour <= current_hour < close_hour
-
     else:
         is_open = current_hour >= open_hour or current_hour < close_hour
 
@@ -508,9 +517,19 @@ def run_scraper_loop():
             f.write(os.environ["AUTH_JSON_CONTENT"])
 
     time.sleep(2)
+    last_clear_date = None
 
     while True:
         try:
+            bahrain_tz = timezone(timedelta(hours=3))
+            now = datetime.now(bahrain_tz)
+            current_date = now.date()
+
+            if now.hour == 10 and last_clear_date != current_date:
+                if os.path.exists(HISTORY_FILE):
+                    open(HISTORY_FILE, 'w').close()
+                    print(f"🧹 Файл {HISTORY_FILE} успешно очищен (ежедневная очистка в 10:00).")
+                last_clear_date = current_date
             if is_shop_open():
                 run_browser()
 
