@@ -312,7 +312,7 @@ def parse_order(order, order_id, status, branch_name):
     ctime = base_order.get("ctime")
     
     seen = processed_ids()
-    if order_id in seen:
+    if order_id in seen and status != 50:
         return
 
     if ctime:
