@@ -485,14 +485,20 @@ def is_shop_open():
     now = datetime.now(bahrain_tz)
 
     day_of_week = now.weekday()
+    current_hour = now.hour
 
+    yesterday_day_of_week = (day_of_week - 1) % 7
+    yesterday_schedule = WEEKLY_SCHEDULE.get(yesterday_day_of_week, [None, None])
+    y_open, y_close = yesterday_schedule
+
+    if y_open is not None and y_close is not None and y_close < y_open:
+        if current_hour < y_close:
+            return True
 
     today_schedule = WEEKLY_SCHEDULE.get(day_of_week, [10, 2])
 
     open_hour = today_schedule[0]
     close_hour = today_schedule[1]
-
-    current_hour = now.hour
 
     if open_hour is None or close_hour is None:
         is_open = False
