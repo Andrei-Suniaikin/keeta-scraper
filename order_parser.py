@@ -149,6 +149,19 @@ def load_cookies():
         return None
 
 
+def modifier_token(name, count):
+    """One modifier name for the additions group. The count is only worth printing when the
+    customer took more than one, otherwise every kitchen row carries a noisy 'x1'."""
+    return name if count in (None, 1) else f"{name} x{count}"
+
+
+def addition_group(parts):
+    """Wraps the modifiers in the description grammar the app already parses: '+(a, b)'.
+    A bare comma list is dropped on the floor by buildTicketLines/parseExtrasNames, which is how
+    Keeta extras stopped reaching the kitchen ticket in the first place."""
+    return f"+({', '.join(parts)})" if parts else ""
+
+
 def parse_options(attributes_list, is_combo, size):
     result = {
         "is_thin_dough": False,
@@ -192,7 +205,7 @@ def parse_options(attributes_list, is_combo, size):
                     for pizza_modifier in pizza_modifiers:
                         name = pizza_modifier.get("spuName")
                         count = pizza_modifier.get("count")
-                        result["description_parts"].append(f"{name} x{count}")
+                        result["description_parts"].append(modifier_token(name, count))
         else:
             if modifier.get("groupName", "")=="Choose Your Pizza":
                 if modifier.get("shopProductGroupSkuList", [])[0] is not None:
@@ -245,7 +258,7 @@ def parse_options(attributes_list, is_combo, size):
                     for pizza_modifier in pizza_modifiers:
                         name = pizza_modifier.get("spuName")
                         count = pizza_modifier.get("count")
-                        result["description_parts"].append(f"{name} x{count}")
+                        result["description_parts"].append(modifier_token(name, count))
 
             if modifier.get("groupName", "").strip() == "Garlic Crust":
                 if modifier.get("shopProductGroupSkuList", [])[0].get("spuName") == "With Garlic Oil On The Crust":
@@ -264,29 +277,18 @@ def parse_options(attributes_list, is_combo, size):
                     item["description"] = result.get("description", '')
 
 
+    # Dough and crust are NOT put in the description: they travel as the is_thin_dough /
+    # is_garlic_crust booleans, and the ticket builder already renders '+ Thin Dough' /
+    # '+ Garlic Crust' from those flags. Echoing them here prints every such row twice.
     if not is_combo:
-        if result["is_thin_dough"]:
-            result["description_parts"].append("Thin")
-        if result["is_garlic_crust"]:
-            result["description_parts"].append("Garlic")
-
-        result["description"] = ", ".join(result["description_parts"])
+        result["description"] = addition_group(result["description_parts"])
 
     else:
-        base_modifiers_str = ", ".join(result["description_parts"])
+        base_modifiers_str = addition_group(result["description_parts"])
 
         for item in result["combo_items"]:
             if item["category"] in ["Pizzas", "Brick Pizzas"]:
-                parts = []
-                if base_modifiers_str:
-                    parts.append(base_modifiers_str)
-
-                if item.get("is_thin_dough"):
-                    parts.append("Thin")
-                if item.get("is_garlic_crust"):
-                    parts.append("Garlic")
-
-                item["description"] = ", ".join(parts)
+                item["description"] = base_modifiers_str
 
         result["description"] = base_modifiers_str
 
@@ -388,7 +390,11 @@ def parse_order_items(raw_items):
         remark = item.get("remark", "").strip()
         description = parsed_opts["description"]
 
-        full_description_str = ", ".join(filter(None, [remark, description]))
+        # Grammar placement rule: additions group first, the customer's free-text note LAST and
+        # '+'-prefixed, so splitNote() locates it and the ticket prints it on its own row.
+        # Comma-joining it into the group (the old behaviour) made it indistinguishable from an
+        # ingredient, and it was dropped along with the rest of the unparseable description.
+        full_description_str = " ".join(filter(None, [description, f"+{remark}" if remark else ""]))
         order_item = {
             "name": db_name,
             "size": db_size,
