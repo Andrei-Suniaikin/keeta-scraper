@@ -28,7 +28,7 @@ WEEKLY_SCHEDULE = {
     3: [16, 2],
     4: [16, 2],
     5: [15, 24],
-    6: [None, None]
+    6: [15, 24]
 }
 
 MENU_CATEGORIES = {
