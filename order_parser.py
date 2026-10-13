@@ -14,6 +14,13 @@ HISTORY_FILE = "history.txt"
 ALL_ORDERS_URL = "https://merchant-eu.mykeeta.com/api/order/history/getOrders"
 PAGE_URL = "https://merchant-eu.mykeeta.com/m/web/mach/b_pc_order_history_list?locale=en&cityId=101200020"
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8080/api/keeta/create_order")
+LOGIN_URL = "https://merchant-eu.mykeeta.com/"
+KEETA_USERNAME = os.environ.get("KEETA_USERNAME", "")
+KEETA_PASSWORD = os.environ.get("KEETA_PASSWORD", "")
+# HEADLESS=0 shows a real browser window (local runs, manual login); Docker/servers keep the default.
+HEADLESS = os.environ.get("HEADLESS", "1").lower() not in ("0", "false", "no")
+RELOGIN_COOLDOWN_SEC = 300
+last_login_attempt = 0.0
 
 
 AVAILABLE_BRANCHES = {
@@ -426,26 +433,86 @@ def save_new_id(order_id):
     with open(HISTORY_FILE, "a") as f:
         f.write(f"{order_id}\n")
 
+def is_login_page(page):
+    try:
+        if re.search(r"login|passport|signin", page.url, re.I):
+            return True
+        return page.locator('input[type="password"]:visible').count() > 0
+    except Exception:
+        return False
+
+
+def auto_login(page, context):
+    """Fills the login form with KEETA_USERNAME / KEETA_PASSWORD, then stores the fresh session
+    (token cookies) in auth.json. In headed mode a captcha / 2FA can be finished by hand."""
+    global last_login_attempt
+
+    if not KEETA_USERNAME or not KEETA_PASSWORD:
+        print("❌ Сессия протухла, но KEETA_USERNAME / KEETA_PASSWORD не заданы.")
+        return False
+    if time.time() - last_login_attempt < RELOGIN_COOLDOWN_SEC:
+        print("⏳ Недавняя попытка входа уже была, ждем кулдаун.")
+        return False
+    last_login_attempt = time.time()
+
+    print("🔐 Сессия протухла, вхожу заново...")
+    try:
+        page.goto(LOGIN_URL)
+        pwd = page.locator('input[type="password"]:visible').first
+        pwd.wait_for(timeout=20000)
+
+        user = page.locator(
+            'input:visible:not([type="password"]):not([type="checkbox"]):not([type="radio"]):not([type="hidden"])'
+        ).first
+        user.fill(KEETA_USERNAME)
+        pwd.fill(KEETA_PASSWORD)
+
+        submit = page.locator('button[type="submit"]:visible, button:visible:has-text("Log in"), '
+                              'button:visible:has-text("Login"), button:visible:has-text("Sign in")').first
+        if submit.count() > 0:
+            submit.click()
+        else:
+            pwd.press("Enter")
+
+        # Up to 90s: leaves room to solve a captcha / 2FA manually when HEADLESS=0.
+        page.wait_for_function(
+            "() => !document.querySelector('input[type=\"password\"]')", timeout=90000)
+        page.wait_for_timeout(3000)
+    except Exception as e:
+        print(f"❌ Автовход не удался: {e}")
+        return False
+
+    if is_login_page(page):
+        print("❌ После автовхода все еще страница логина.")
+        return False
+
+    context.storage_state(path=AUTH_FILE)
+    print("✅ Вошли, новая сессия сохранена в auth.json.")
+    return True
+
+
 def run_browser():
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=True, args=['--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-accelerated-2d-canvas',
-                '--no-first-run',
-                '--no-zygote',
-                '--single-process',
-                '--disable-gpu'])
+        launch_args = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+                       '--no-first-run']
+        if HEADLESS:
+            # These flags are for containers; --single-process/--no-zygote break headed Chrome.
+            launch_args += ['--disable-accelerated-2d-canvas', '--no-zygote', '--single-process',
+                            '--disable-gpu']
+        browser = playwright.chromium.launch(headless=HEADLESS, args=launch_args)
 
+        context_kwargs = dict(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            viewport={"width": 1920, "height": 1080},
+        )
         try:
-            context = browser.new_context(
-                storage_state=AUTH_FILE,
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                viewport={"width": 1920, "height": 1080}
-            )
+            if os.path.exists(AUTH_FILE):
+                context = browser.new_context(storage_state=AUTH_FILE, **context_kwargs)
+            else:
+                print(f"⚠️ {AUTH_FILE} не найден, начну с автовхода.")
+                context = browser.new_context(**context_kwargs)
         except Exception as e:
             print(f"❌ Ошибка чтения файла авторизации: {e}")
-            print("Попробуйте удалить auth.json и пройти авторизацию заново.")
             browser.close()
             return
 
@@ -467,11 +534,14 @@ def run_browser():
 
         page.on("response", handle_response)
 
-        page.goto(
-            PAGE_URL
-        )
-
+        page.goto(PAGE_URL)
         page.wait_for_timeout(25000)
+
+        if is_login_page(page):
+            if auto_login(page, context):
+                final_data.clear()
+                page.goto(PAGE_URL)
+                page.wait_for_timeout(25000)
 
         print(f"📍 Текущий URL: {page.url}")
         print(f"📄 Заголовок: {page.title()}")
