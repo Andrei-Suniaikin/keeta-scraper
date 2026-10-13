@@ -169,6 +169,27 @@ def addition_group(parts):
     return f"+({', '.join(parts)})" if parts else ""
 
 
+WITHOUT_RE = re.compile(r'^\s*without\s+(.+?)\s*$', re.IGNORECASE)
+
+
+def removal_name(sku_name):
+    """'Without Cherry Tomatoes' -> 'Cherry Tomatoes'; None for any other option name. Keeta models
+    a removal as a pick-one option inside its own group, so the choice is read off the option name
+    rather than the group name (the matching 'With ...' option is the default and needs no row)."""
+    match = WITHOUT_RE.match(sku_name or "")
+    return match.group(1) if match else None
+
+
+def removal_group(parts):
+    """Wraps the removals in the '-(a, b)' grammar parseRemovalNames reads, which the ticket renders
+    as '- NO a'. Without it a removal never reaches the kitchen."""
+    return f"-({', '.join(parts)})" if parts else ""
+
+
+def build_description(addition_parts, removal_parts):
+    return " ".join(group for group in (addition_group(addition_parts), removal_group(removal_parts)) if group)
+
+
 def parse_options(attributes_list, is_combo, size):
     result = {
         "is_thin_dough": False,
@@ -177,11 +198,16 @@ def parse_options(attributes_list, is_combo, size):
         "order_items": [],
         "combo_items": [],
         'description_parts': [],
+        'removal_parts': [],
         'description': '',
     }
 
     for modifier in attributes_list:
         if not modifier: continue
+
+        for sku in modifier.get("shopProductGroupSkuList") or []:
+            removed = removal_name((sku or {}).get("spuName"))
+            if removed: result["removal_parts"].append(removed)
 
         if not is_combo:
             if modifier.get("groupName", "")=="Garlic Crust":
@@ -211,6 +237,7 @@ def parse_options(attributes_list, is_combo, size):
                     pizza_modifiers = modifier.get("shopProductGroupSkuList", [])
                     for pizza_modifier in pizza_modifiers:
                         name = pizza_modifier.get("spuName")
+                        if removal_name(name): continue
                         count = pizza_modifier.get("count")
                         result["description_parts"].append(modifier_token(name, count))
         else:
@@ -264,6 +291,7 @@ def parse_options(attributes_list, is_combo, size):
                     pizza_modifiers = modifier.get("shopProductGroupSkuList", [])
                     for pizza_modifier in pizza_modifiers:
                         name = pizza_modifier.get("spuName")
+                        if removal_name(name): continue
                         count = pizza_modifier.get("count")
                         result["description_parts"].append(modifier_token(name, count))
 
@@ -288,10 +316,10 @@ def parse_options(attributes_list, is_combo, size):
     # is_garlic_crust booleans, and the ticket builder already renders '+ Thin Dough' /
     # '+ Garlic Crust' from those flags. Echoing them here prints every such row twice.
     if not is_combo:
-        result["description"] = addition_group(result["description_parts"])
+        result["description"] = build_description(result["description_parts"], result["removal_parts"])
 
     else:
-        base_modifiers_str = addition_group(result["description_parts"])
+        base_modifiers_str = build_description(result["description_parts"], result["removal_parts"])
 
         for item in result["combo_items"]:
             if item["category"] in ["Pizzas", "Brick Pizzas"]:
@@ -300,6 +328,7 @@ def parse_options(attributes_list, is_combo, size):
         result["description"] = base_modifiers_str
 
     del result["description_parts"]
+    del result["removal_parts"]
     return result
 
 def parse_orders(orders):

@@ -27,7 +27,7 @@ _playwright_sync.sync_playwright = lambda: None
 sys.modules.setdefault("playwright", _playwright)
 sys.modules.setdefault("playwright.sync_api", _playwright_sync)
 
-from order_parser import addition_group, modifier_token, parse_options  # noqa: E402
+from order_parser import addition_group, modifier_token, parse_options, removal_name  # noqa: E402
 
 
 def modifier_group(group_name, *modifiers):
@@ -48,6 +48,23 @@ MEDIUM_MODIFIERS_GROUP = modifier_group(
     (85491655, "Cheddar", 1, 240),
     (85491656, "Darblu Cheese", 1, 240),
 )
+
+
+CHERRY_TOMATOES_WITHOUT_GROUP = modifier_group("Cherry Tomatoes", (85541400, "Without Cherry Tomatoes", 1, 0))
+CHERRY_TOMATOES_WITH_GROUP = modifier_group("Cherry Tomatoes", (85541401, "With Cherry Tomatoes", 1, 0))
+
+
+class RemovalNameTest(unittest.TestCase):
+    def test_extracts_the_removed_ingredient(self):
+        self.assertEqual(removal_name("Without Cherry Tomatoes"), "Cherry Tomatoes")
+
+    def test_is_case_insensitive(self):
+        self.assertEqual(removal_name("WITHOUT onion"), "onion")
+
+    def test_ignores_options_that_are_not_removals(self):
+        self.assertIsNone(removal_name("With Cherry Tomatoes"))
+        self.assertIsNone(removal_name("With Garlic Oil On The Crust"))
+        self.assertIsNone(removal_name(None))
 
 
 class ModifierTokenTest(unittest.TestCase):
@@ -96,6 +113,45 @@ class ParseOptionsNonComboTest(unittest.TestCase):
 
         self.assertEqual(len(result["order_items"]), 1)
         self.assertEqual(result["order_items"][0]["name"], "Garlic Sauce")
+
+
+class ParseOptionsRemovalTest(unittest.TestCase):
+    def test_turns_a_without_option_into_a_removal_token(self):
+        result = parse_options([CHERRY_TOMATOES_WITHOUT_GROUP], is_combo=False, size="M")
+
+        self.assertEqual(result["description"], "-(Cherry Tomatoes)")
+
+    def test_keeps_additions_before_removals(self):
+        result = parse_options(
+            [CHERRY_TOMATOES_WITHOUT_GROUP, MEDIUM_MODIFIERS_GROUP], is_combo=False, size="M"
+        )
+
+        self.assertEqual(result["description"], "+(Cheddar, Darblu Cheese) -(Cherry Tomatoes)")
+
+    def test_the_default_with_option_adds_nothing(self):
+        result = parse_options([CHERRY_TOMATOES_WITH_GROUP], is_combo=False, size="M")
+
+        self.assertEqual(result["description"], "")
+
+    def test_a_without_option_inside_a_modifiers_group_is_a_removal_not_an_addition(self):
+        group = modifier_group(
+            "Modifiers For Medium Pizza", (1, "Cheddar", 1, 240), (2, "Without Cherry Tomatoes", 1, 0)
+        )
+
+        result = parse_options([group], is_combo=False, size="M")
+
+        self.assertEqual(result["description"], "+(Cheddar) -(Cherry Tomatoes)")
+
+    def test_a_combo_pizza_child_gets_the_removal(self):
+        groups = [
+            modifier_group("Choose Your Pizza", (97384131, "Margherita", 1, 0)),
+            CHERRY_TOMATOES_WITHOUT_GROUP,
+        ]
+
+        result = parse_options(groups, is_combo=True, size="M")
+
+        pizza = next(item for item in result["combo_items"] if item["category"] == "Pizzas")
+        self.assertEqual(pizza["description"], "-(Cherry Tomatoes)")
 
 
 class ParseOptionsComboTest(unittest.TestCase):
