@@ -128,10 +128,32 @@ class ParseOptionsRemovalTest(unittest.TestCase):
 
         self.assertEqual(result["description"], "+(Cheddar, Darblu Cheese) -(Cherry Tomatoes)")
 
-    def test_the_default_with_option_adds_nothing(self):
+    def test_a_with_option_is_spelled_out_as_an_addition(self):
         result = parse_options([CHERRY_TOMATOES_WITH_GROUP], is_combo=False, size="M")
 
+        self.assertEqual(result["description"], "+(With Cherry Tomatoes)")
+
+    def test_a_with_option_joins_the_paid_modifiers_once(self):
+        group = modifier_group(
+            "Modifiers For Medium Pizza", (1, "Cheddar", 1, 240), (2, "With Cherry Tomatoes", 1, 0)
+        )
+
+        result = parse_options([group], is_combo=False, size="M")
+
+        self.assertEqual(result["description"], "+(With Cherry Tomatoes, Cheddar)")
+
+    def test_the_garlic_crust_with_option_stays_on_its_flag(self):
+        result = parse_options([GARLIC_CRUST_GROUP], is_combo=False, size="M")
+
+        self.assertTrue(result["is_garlic_crust"])
         self.assertEqual(result["description"], "")
+
+    def test_order_6063_tells_the_with_line_apart_from_the_without_line(self):
+        with_line = parse_options([CHERRY_TOMATOES_WITH_GROUP], is_combo=False, size="L")
+        without_line = parse_options([CHERRY_TOMATOES_WITHOUT_GROUP], is_combo=False, size="L")
+
+        self.assertEqual(with_line["description"], "+(With Cherry Tomatoes)")
+        self.assertEqual(without_line["description"], "-(Cherry Tomatoes)")
 
     def test_a_without_option_inside_a_modifiers_group_is_a_removal_not_an_addition(self):
         group = modifier_group(
@@ -152,6 +174,17 @@ class ParseOptionsRemovalTest(unittest.TestCase):
 
         pizza = next(item for item in result["combo_items"] if item["category"] == "Pizzas")
         self.assertEqual(pizza["description"], "-(Cherry Tomatoes)")
+
+    def test_a_combo_pizza_child_gets_the_with_option(self):
+        groups = [
+            modifier_group("Choose Your Pizza", (97384131, "Margherita", 1, 0)),
+            CHERRY_TOMATOES_WITH_GROUP,
+        ]
+
+        result = parse_options(groups, is_combo=True, size="M")
+
+        pizza = next(item for item in result["combo_items"] if item["category"] == "Pizzas")
+        self.assertEqual(pizza["description"], "+(With Cherry Tomatoes)")
 
 
 class ParseOptionsComboTest(unittest.TestCase):

@@ -180,6 +180,21 @@ def removal_name(sku_name):
     return match.group(1) if match else None
 
 
+WITH_RE = re.compile(r'^\s*with\s+.+$', re.IGNORECASE)
+
+# Groups whose 'With ...' choice already travels as a boolean flag the ticket renders on its own.
+FLAG_GROUPS = {"Garlic Crust"}
+
+
+def inclusion_name(sku_name, group_name):
+    """'With Cherry Tomatoes' -> 'With Cherry Tomatoes'; None otherwise. The 'With' choice is the
+    recipe default, but leaving it off the ticket let a sibling line's 'NO Cherry Tomatoes' get
+    applied to every pizza in the order, so it is spelled out explicitly."""
+    if (group_name or "").strip() in FLAG_GROUPS:
+        return None
+    return sku_name.strip() if WITH_RE.match(sku_name or "") else None
+
+
 def removal_group(parts):
     """Wraps the removals in the '-(a, b)' grammar parseRemovalNames reads, which the ticket renders
     as '- NO a'. Without it a removal never reaches the kitchen."""
@@ -206,8 +221,11 @@ def parse_options(attributes_list, is_combo, size):
         if not modifier: continue
 
         for sku in modifier.get("shopProductGroupSkuList") or []:
-            removed = removal_name((sku or {}).get("spuName"))
+            sku_name = (sku or {}).get("spuName")
+            removed = removal_name(sku_name)
             if removed: result["removal_parts"].append(removed)
+            included = inclusion_name(sku_name, modifier.get("groupName"))
+            if included: result["description_parts"].append(included)
 
         if not is_combo:
             if modifier.get("groupName", "")=="Garlic Crust":
@@ -237,7 +255,7 @@ def parse_options(attributes_list, is_combo, size):
                     pizza_modifiers = modifier.get("shopProductGroupSkuList", [])
                     for pizza_modifier in pizza_modifiers:
                         name = pizza_modifier.get("spuName")
-                        if removal_name(name): continue
+                        if removal_name(name) or inclusion_name(name, modifier.get("groupName")): continue
                         count = pizza_modifier.get("count")
                         result["description_parts"].append(modifier_token(name, count))
         else:
@@ -291,7 +309,7 @@ def parse_options(attributes_list, is_combo, size):
                     pizza_modifiers = modifier.get("shopProductGroupSkuList", [])
                     for pizza_modifier in pizza_modifiers:
                         name = pizza_modifier.get("spuName")
-                        if removal_name(name): continue
+                        if removal_name(name) or inclusion_name(name, modifier.get("groupName")): continue
                         count = pizza_modifier.get("count")
                         result["description_parts"].append(modifier_token(name, count))
 
